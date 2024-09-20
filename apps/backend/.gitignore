@@ -1,0 +1,43 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries
+*.test
+
+# Output of the Go coverage tool
+*.out
+
+# Build directory 
+build/
+tmp/
+
+# Dependency directories
+
+
+/vendor/
+Godeps/
+vendor/
+
+# Editor and IDE directories
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Go module files
+go.sum
+
+# Config files
+configs/config.yaml
