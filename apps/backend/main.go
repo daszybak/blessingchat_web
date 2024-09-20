@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"proomptmachinee/pkg/openapi"
 	"proomptmachinee/pkg/openapi/completions"
+
+	"gopkg.in/yaml.v3"
 )
 
 type ChatbotApi struct {
@@ -13,14 +16,28 @@ type ChatbotApi struct {
 }
 
 func main() {
-	key := "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"
+	configFile, err := os.ReadFile("configs/config.yaml")
+	if err != nil {
+		log.Fatal("couldn't read config file", err)
+	}
+	config := &struct {
+		Openai struct {
+			ApiKey         string `yaml:"api_key"`
+			OrganizationId string `yaml:"organization_id"`
+		} `yaml:"openai"`
+	}{}
+	err = yaml.Unmarshal(configFile, config)
+	if err != nil {
+		log.Fatal("couldn't unmarshal config", err)
+	}
+	key := config.Openai.ApiKey
 	client := &http.Client{}
 	completionsClient := completions.NewCompletionsClient(key, client, openapi.Gpt4oMini)
 	api := &ChatbotApi{completionsClient}
 
 	http.HandleFunc("/chat_bot", api.handleStream)
-	fmt.Println("Listening on port 8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	fmt.Println("Listening on port 4000")
+	log.Fatal(http.ListenAndServe(":4000", nil))
 }
 
 func (api *ChatbotApi) handleStream(w http.ResponseWriter, r *http.Request) {
