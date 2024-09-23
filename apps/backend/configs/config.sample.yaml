@@ -1,3 +1,5 @@
+server:
+  port:
 openai:
   api_key: 
   organization_id: 
