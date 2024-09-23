@@ -35,9 +35,21 @@ func main() {
 	completionsClient := completions.NewCompletionsClient(key, client, openapi.Gpt4oMini)
 	api := &ChatbotApi{completionsClient}
 
-	http.HandleFunc("/chat_bot", api.handleStream)
+	http.Handle("/chat_bot", corsMiddleware(http.HandlerFunc(api.handleStream)))
 	fmt.Println("Listening on port 4000")
 	log.Fatal(http.ListenAndServe(":4000", nil))
+}
+
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+		w.Header().Set("Access-Control-Allow-Methods", r.Header.Get("Access-Control-Request-Method"))
+		w.Header().Set("Access-Control-Allow-Headers", r.Header.Get("Access-Control-Request-Headers"))
+		if r.Method == "OPTIONS" {
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (api *ChatbotApi) handleStream(w http.ResponseWriter, r *http.Request) {
@@ -49,4 +61,7 @@ func (api *ChatbotApi) handleStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = response.Receive(w)
+	if err != nil {
+		log.Println("error receiving response", err)
+	}
 }
