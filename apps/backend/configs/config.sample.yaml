@@ -1,3 +1,7 @@
+server:
+  port:
 openai:
   api_key: 
   organization_id: 
+keycloak:
+  oauth2_issuer_url:
