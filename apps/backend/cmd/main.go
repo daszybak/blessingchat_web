@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"net/http"
 	"os"
 	"proomptmachinee/internal/api"
@@ -12,6 +11,8 @@ import (
 	"proomptmachinee/internal/services/openapi/completions"
 	"proomptmachinee/pkg/logger"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 func main() {
@@ -48,5 +49,4 @@ func main() {
 	log.Info("Server started", map[string]interface{}{"port": "4000"})
 	err = server.ListenAndServe()
 	log.Fatal("server shutting down", err)
-
 }
