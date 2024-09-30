@@ -23,7 +23,8 @@ func NewValidator(oauth2IssuerUrl string) *Validator {
 
 // TODO separate this in form of keycloak client
 func (v *Validator) getKeycloakPublicKey(kid string) (*rsa.PublicKey, error) {
-	resp, err := http.Get(v.Oauth2IssuerUrl)
+	url := fmt.Sprintf("%s/protocol/openid-connect/certs", v.Oauth2IssuerUrl)
+	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("error getting keycloak public key from url %s: %s", v.Oauth2IssuerUrl, err)
 	}
@@ -76,6 +77,10 @@ func (v *Validator) ValidateTokenSignature(token string) (string, error) {
 	// dirty solution for basic token checking
 	if exp := int64(*claims.Expiry); exp < time.Now().Unix() {
 		return "", fmt.Errorf("token expired")
+	}
+
+	if claims.Issuer != v.Oauth2IssuerUrl {
+		return "", fmt.Errorf("token issuer is not %s", v.Oauth2IssuerUrl)
 	}
 
 	return claims.ID, nil

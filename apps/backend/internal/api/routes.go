@@ -12,6 +12,7 @@ func (api *Api) Routes() *httprouter.Router {
 	chain := alice.New(api.authMiddleware)
 	router.Handler(http.MethodGet, "/v1/test", chain.Then(http.HandlerFunc(api.testToken)))
 	router.HandlerFunc(http.MethodGet, "/v1/chat_bot", api.handleStream)
+	router.HandlerFunc(http.MethodGet, "/v1/data", api.handleGetTestData)
 	router.Handler(http.MethodGet, "/v1/healthcheck", api.loggingMiddleware(http.HandlerFunc(api.healthcheck)))
 
 	return router

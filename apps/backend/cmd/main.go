@@ -10,7 +10,9 @@ import (
 	"proomptmachinee/internal/services/keycloak"
 	"proomptmachinee/internal/services/openapi"
 	"proomptmachinee/internal/services/openapi/completions"
+	resp_errors "proomptmachinee/pkg/errors"
 	"proomptmachinee/pkg/logger"
+	"proomptmachinee/pkg/resputil"
 	"time"
 )
 
@@ -30,7 +32,9 @@ func main() {
 	client := &http.Client{}
 	completionsClient := completions.NewCompletionsClient(key, client, openapi.Gpt4oMini)
 	kcValidator := keycloak.NewValidator(cfg.Keycloak.Oauth2IssuerURL)
-	chatBotApi := api.New(completionsClient, kcValidator, log)
+	errResp := resp_errors.New(log)
+	resp := resputil.NewResputil()
+	chatBotApi := api.New(completionsClient, kcValidator, log, resp, errResp)
 	server := &http.Server{
 		Addr:        ":4000",
 		Handler:     chatBotApi.Routes(),
