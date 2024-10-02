@@ -4,6 +4,7 @@ go 1.23
 
 require (
 	github.com/go-jose/go-jose/v4 v4.0.4
+	github.com/gorilla/websocket v1.5.3
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/justinas/alice v1.2.0
 	github.com/pkoukk/tiktoken-go v0.1.7

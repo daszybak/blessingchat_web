@@ -20,6 +20,10 @@ func (api *Api) handleStream(w http.ResponseWriter, r *http.Request) {
 	err = response.Receive(w)
 }
 
+func (api *Api) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	api.realtimeClient.WsHandler(w, r)
+}
+
 func (api *Api) healthcheck(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 	w.Write([]byte("service is healthy"))

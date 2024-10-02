@@ -21,7 +21,7 @@ const Chat = () => {
         setCurrMessage("");
         e.preventDefault();
         setIsLoading(true);
-        const response = await fetch("http://localhost:4000/chat_bot?prompt=" + prompt, {
+        const response = await fetch("http://localhost:4000/v1/chat_bot?prompt=" + prompt, {
             method: "GET",
         });
         const reader = response.body!.getReader();
