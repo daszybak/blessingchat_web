@@ -55,7 +55,6 @@ func (c *Client) WsHandler(w http.ResponseWriter, r *http.Request) error {
 		http.Error(w, "couldn't upgrade connection", http.StatusInternalServerError)
 		return errors.New("couldn't upgrade connection")
 	}
-	defer clientConn.Close()
 
 	log.Println("WebSocket connection opened with client")
 
@@ -127,7 +126,5 @@ func (c *Client) WsHandler(w http.ResponseWriter, r *http.Request) error {
 			}
 		}
 	}()
-
-	<-done
 	return nil
 }
