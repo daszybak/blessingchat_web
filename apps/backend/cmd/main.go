@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 	"proomptmachinee/internal/api"
@@ -28,7 +27,6 @@ func main() {
 		log.Fatal("couldn't unmarshal config", err)
 	}
 	key := cfg.OpenAi.ApiKey
-	fmt.Println(key)
 	httpClient := &http.Client{}
 	completionsClient := completions.NewCompletionsClient(key, httpClient, openai.Gpt4oMini)
 	realtimeClient := realtime.NewRealtimeClient(key, openai.Gpt40RealtimePreview)

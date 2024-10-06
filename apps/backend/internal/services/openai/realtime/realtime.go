@@ -1,10 +1,12 @@
 package realtime
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"proomptmachinee/internal/services/openai"
 
 	"github.com/gorilla/websocket"
 )
@@ -13,6 +15,7 @@ const (
 	OpenAiRealtimeUrl     = "wss://api.openai.com/v1/realtime"
 	OpenAiBetaHeaderKey   = "OpenAI-Beta"
 	OpenAiBetaHeaderValue = "realtime=v1"
+	OpenAiModelQueryKey   = "model"
 )
 
 type Client struct {
@@ -49,82 +52,100 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+type Message struct {
+	Content []byte
+	Type    int
+}
+
+// TODO close connection with OpenAi when client closes the connection
 func (c *Client) WsHandler(w http.ResponseWriter, r *http.Request) error {
+	// Upgrade connection with client from Http to WebSocket
 	clientConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		http.Error(w, "couldn't upgrade connection", http.StatusInternalServerError)
 		return errors.New("couldn't upgrade connection")
 	}
 
-	log.Println("WebSocket connection opened with client")
+	log.Println("WebSocket connection opened with client", r.Header.Get(""))
 
-	openAiConn, resp, err := websocket.DefaultDialer.Dial(c.url, c.headers)
+	// Open websocket connection with Open Ai
+	openAiConn, resp, err := websocket.DefaultDialer.Dial(OpenAiRealtimeUrl+"?"+OpenAiModelQueryKey+"="+openai.Gpt40RealtimePreview, c.headers)
+	// TODO sent intial message to Open Ai of type `session.update`
+	// to update the session's default configuration
 	if err != nil {
 		if resp != nil {
-			return fmt.Errorf("openAI response status: %s", resp.Status)
+			return fmt.Errorf("openAi response status: %s", resp.Status)
 		}
-		closeMessage := websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "failed to connect to OpenAI")
+		closeMessage := websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "failed to connect to OpenAi")
 		if writeErr := clientConn.WriteMessage(websocket.CloseMessage, closeMessage); writeErr != nil {
 			return fmt.Errorf("couldn't send close message to client: %v", writeErr)
 		}
 		return fmt.Errorf("failed to connect to OpenAI: %w", err)
 	}
-	defer func() {
-		err := openAiConn.Close()
-		if err != nil {
-			log.Printf("error closing OpenAI connection: %v", err)
-		}
-	}()
 
-	done := make(chan struct{})
+	var openAiReceivedMessages = make(chan *Message, 10)
 
+	// Read messages from OpenAi
 	go func() {
-		defer close(done)
+		defer func() {
+			close(openAiReceivedMessages)
+		}()
 		for {
-			messageType, message, err := clientConn.ReadMessage()
-			if err != nil {
-				log.Printf("couldn't read message from client: %v", err)
-				closeMessage := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "Client disconnected")
-				if writeErr := openAiConn.WriteMessage(websocket.CloseMessage, closeMessage); writeErr != nil {
-					log.Printf("error sending close message to OpenAI: %v", writeErr)
-				}
-				break
-			}
-
-			err = openAiConn.WriteMessage(messageType, message)
-			if err != nil {
-				log.Printf("couldn't send message to OpenAI: %v", err)
-				closeMessage := websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "Failed to send message to OpenAI")
-				if writeErr := clientConn.WriteMessage(websocket.CloseMessage, closeMessage); writeErr != nil {
-					log.Printf("error sending close message to client: %v", writeErr)
-				}
-				break
-			}
-		}
-	}()
-
-	go func() {
-		for {
-			messageType, message, err := openAiConn.ReadMessage()
+			messageType, messageContent, err := openAiConn.ReadMessage()
+			var result interface{}
+			json.Unmarshal(messageContent, &result)
+			log.Printf("received message from Open Ai: %v, %v, %v", messageType, result, err)
 			if err != nil {
 				log.Printf("couldn't read message from OpenAI: %v", err)
-				closeMessage := websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "OpenAI disconnected")
-				if writeErr := clientConn.WriteMessage(websocket.CloseMessage, closeMessage); writeErr != nil {
-					log.Printf("error sending close message to client: %v", writeErr)
+				msg := &Message{
+					Content: websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "OpenAI disconnected"),
+					Type:    websocket.CloseMessage,
 				}
+				openAiReceivedMessages <- msg
 				break
 			}
-
-			err = clientConn.WriteMessage(messageType, message)
-			if err != nil {
-				log.Printf("couldn't send message to client: %v", err)
-				closeMessage := websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "Failed to send message to client")
-				if writeErr := openAiConn.WriteMessage(websocket.CloseMessage, closeMessage); writeErr != nil {
-					log.Printf("error sending close message to OpenAI: %v", writeErr)
-				}
-				break
+			msg := &Message{
+				Content: messageContent,
+				Type:    messageType,
 			}
+			openAiReceivedMessages <- msg
 		}
 	}()
+
+	// Send OpenAi messages back to client
+	go func() {
+		for message := range openAiReceivedMessages {
+			clientConn.WriteMessage(message.Type, message.Content)
+		}
+	}()
+
+	var clientReceivedMessages = make(chan *Message, 10)
+
+	// Send client messages to OpenAi
+	go func() {
+		for message := range clientReceivedMessages {
+			openAiConn.WriteMessage(message.Type, message.Content)
+		}
+	}()
+
+	// Receive messages from client
+	go func() {
+		for {
+			messageType, messageContent, err := clientConn.ReadMessage()
+			var result interface{}
+			json.Unmarshal(messageContent, &result)
+			log.Printf("received message from client: %v, %v, %v", messageType, result, err)
+			if err != nil {
+				log.Printf("couldn't read message from client: %v", err)
+				break
+			}
+			msg := &Message{
+				Content: messageContent,
+				Type:    messageType,
+			}
+			clientReceivedMessages <- msg
+		}
+	}()
+
 	return nil
 }

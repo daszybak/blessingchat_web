@@ -1,57 +1,141 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
+import Realtime from "@/src/utils/realtime";
+import RealtimeUtils from "@/src/utils/realtime";
 
-const useWebsocket = () => {
-    const websocketRef = useRef<WebSocket | null>(null);
+interface WebsocketReducerState {
+    websocket: WebSocket | null;
+    isConnected: boolean,
+    error: any
+}
 
-    useEffect(() => {
-        const websocket = new WebSocket("ws://localhost:4000/v1/speech_to_speech");
-        websocketRef.current = websocket;
+const initialState: WebsocketReducerState = {
+    websocket: null,
+    isConnected: false,
+    error: null
+}
 
-        websocket.onopen = () => {
-            console.log("WebSocket connection opened");
-        };
+type Actions = { type: "open"; payload: WebSocket | null } | { type: "close" } | { type: "error"; payload: any }
 
-        websocket.onclose = () => {
-            console.log("WebSocket connection closed");
-        };
-
-        websocket.onerror = (error) => {
-            console.error("WebSocket error:", error);
-        };
-
-        return () => {
-            websocket.close();
-        };
-    }, []);
-
-    return websocketRef.current;
-};
+const websocketReducer = (state: WebsocketReducerState, action: Actions) => {
+    switch (action.type) {
+        case "open":
+            return {
+                ...state,
+                websocket: action.payload,
+                isConnected: true,
+            }
+        case "close":
+            return {
+                ...state,
+                isConnected: false,
+            }
+        case "error":
+            return {
+                ...state,
+                error: action.payload
+            }
+    }
+}
 
 const VoiceChat = () => {
-    const websocket = useWebsocket();
+    const [state, dispatchEvent] = useReducer(websocketReducer, initialState);
     const [isRecording, setIsRecording] = useState(false);
     const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
     const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
     const audioRef = useRef<HTMLAudioElement>(null);
 
+    const { websocket, isConnected, error } = state;
+
+    useEffect(() => {
+        const _websocket = new WebSocket("http://localhost:4000/v1/speech_to_speech");
+        _websocket.addEventListener("open", function () {
+            console.log("Connection with:", this.url, " opened")
+        })
+        _websocket.addEventListener("close", function () {
+            console.log("Connection with:", this.url, " closed")
+            dispatchEvent({ type: "close" });
+        })
+        _websocket.addEventListener("error", function (e) {
+            dispatchEvent({ type: "error", payload: e })
+        })
+        dispatchEvent({ type: "open", payload: _websocket })
+    }, []);
+
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const queueRef = useRef<AudioBuffer[]>([]);
+    const isPlayingRef = useRef(false);
+    const nextPlayTimeRef = useRef(0);
+
+    const sampleRate = 24000; // PCM16 sample rate
+    const channels = 1; // Mono
+
     useEffect(() => {
         if (!websocket) return;
 
-        websocket.onmessage = (event) => {
+        // Initialize AudioContext once
+        if (!audioContextRef.current) {
+            audioContextRef.current = new AudioContext({
+                sampleRate
+            })
+        }
+
+        const audioContext = audioContextRef.current;
+
+        async function playQueue(audioContext: AudioContext) {
+            while (queueRef.current.length > 0) {
+                const buffer = queueRef.current.shift();
+                const source = audioContext.createBufferSource();
+                source.buffer = buffer as AudioBuffer | null;
+                source.connect(audioContext.destination);
+                source.start();
+
+                // Wait until the buffer finishes playing
+                await new Promise((resolve) => {
+                    source.onended = resolve;
+                });
+            }
+            isPlayingRef.current = false;
+        }
+
+        websocket.onmessage = async (event) => {
             const data = JSON.parse(event.data);
+            console.log("Received data: ", data);
 
-            if (data.type === "audio") {
-                const audioBlob = base64ToBlob(data.audio, "audio/wav");
-                const audioUrl = URL.createObjectURL(audioBlob);
+            if (data.type === "response.audio.delta") {
+                try {
+                    // Step 1: Decode Base64 to ArrayBuffer
+                    const pcmArrayBuffer = Realtime.base64ToArrayBuffer(data.delta);
 
-                const audio = new Audio(audioUrl);
-                audio.play();
+                    // Step 2: Convert PCM16 to Float32Array
+                    const float32Array = Realtime.pcmArrayBufferToFloat32(pcmArrayBuffer);
+
+                    const audioBuffer = audioContext.createBuffer(channels, float32Array.length, sampleRate);
+                    audioBuffer.getChannelData(0).set(float32Array);
+
+                    queueRef.current.push(audioBuffer);
+
+                    // Step 6: Start playback if not already playing
+                    if (!isPlayingRef.current) {
+                        isPlayingRef.current = true;
+                        playQueue(audioContext);
+                    }
+                } catch (error) {
+                    console.error("Error processing audio data:", error);
+                }
+            }
+        };
+
+        // Cleanup on unmount
+        return () => {
+            if (audioContextRef.current) {
+                audioContextRef.current.close();
             }
         };
     }, [websocket]);
 
+    // TODO fix sending message
     const startRecording = async () => {
         if (!navigator.mediaDevices) {
             console.error("MediaDevices API not supported");
@@ -63,21 +147,22 @@ const VoiceChat = () => {
             const recorder = new MediaRecorder(stream);
             setMediaRecorder(recorder);
 
-            recorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                        const base64Audio = reader.result?.toString().split(",")[1];
-                        if (base64Audio) {
-                            websocket?.send(
-                                JSON.stringify({
-                                    type: "input_audio_buffer.append",
-                                    audio: base64Audio,
-                                })
-                            );
-                        }
-                    };
-                    reader.readAsDataURL(event.data);
+            recorder.ondataavailable = async (event) => {
+                try {
+                    if (event.data && event.data.size > 0) {
+                        const arrayBuffer = await event.data.arrayBuffer();
+                        const audioBuffer = await audioContextRef.current?.decodeAudioData(arrayBuffer);
+                        const pcmData = audioBuffer?.getChannelData(0);
+                        const pcm16Data = RealtimeUtils.floatTo16BitPCM(pcmData ?? new Float32Array());
+                        const base64Data = RealtimeUtils.arrayBufferToBase64(pcm16Data);
+                        const message = JSON.stringify({
+                            type: "input_audio_buffer.append",
+                            audio: base64Data,
+                        })
+                        websocket?.send(message);
+                    }
+                } catch (error) {
+                    console.log("err: ", error);
                 }
             };
 
@@ -108,6 +193,7 @@ const VoiceChat = () => {
 
     return (
         <div>
+            <h1>Voice Chat</h1>
             <button onClick={isRecording ? stopRecording : startRecording}>
                 {isRecording ? "Stop Recording" : "Start Recording"}
             </button>
@@ -115,28 +201,5 @@ const VoiceChat = () => {
         </div>
     );
 };
-
-function base64ToBlob(base64: string, mimeType: string) {
-    const byteCharacters = atob(base64);
-    const byteArrays = [];
-
-    for (
-        let offset = 0;
-        offset < byteCharacters.length;
-        offset += 512
-    ) {
-        const slice = byteCharacters.slice(offset, offset + 512);
-
-        const byteNumbers = new Array(slice.length);
-        for (let i = 0; i < slice.length; i++) {
-            byteNumbers[i] = slice.charCodeAt(i);
-        }
-
-        const byteArray = new Uint8Array(byteNumbers);
-        byteArrays.push(byteArray);
-    }
-
-    return new Blob(byteArrays, { type: mimeType });
-}
 
 export default VoiceChat;
