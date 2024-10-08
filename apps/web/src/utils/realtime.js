@@ -117,7 +117,13 @@ export default class RealtimeUtils {
         return float32Array;
     }
 
-
+    /**
+     * Resamples the input data to the wanted sample rate.
+     * @param {Float32Array} inputData 
+     * @param {number} inputSampleRate 
+     * @param {number} outputSampleRate 
+     * @returns {Float32Array}
+     */
     static resample(inputData, inputSampleRate, outputSampleRate) {
         const sampleRatio = inputSampleRate / outputSampleRate;
         const newLength = Math.round(inputData.length / sampleRatio);

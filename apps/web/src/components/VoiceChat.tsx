@@ -39,12 +39,14 @@ const websocketReducer = (state: WebsocketReducerState, action: Actions) => {
     }
 }
 
+// TODO refactor
+// TODO add bidirectional communication
 const VoiceChat = () => {
     const [state, dispatchEvent] = useReducer(websocketReducer, initialState);
     const [isRecording, setIsRecording] = useState(false);
-    const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
     const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
     const audioRef = useRef<HTMLAudioElement>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
     const { websocket, isConnected, error } = state;
 
@@ -74,11 +76,24 @@ const VoiceChat = () => {
     useEffect(() => {
         if (!websocket) return;
 
-        // Initialize AudioContext once
+        // Create audio context, which is used to process the 
+        // audio. It is a graph data structure consisting of
+        // input node, ouput node, processing nodes
+        // 
+        // It is necessary to create the input/source with
+        // the destination node ("often your speakers")
+        // or, e.g., you can take the `destination.stream`
+        // and pass it further to change the "destination"/output
+        //
+        // It takes the stream, i.e., microphone, or buffer,
+        // i.e., incoming websocket message, and processes it,
+        // 
         if (!audioContextRef.current) {
             audioContextRef.current = new AudioContext({
                 sampleRate
-            })
+            });
+        } else if (audioContextRef.current.state === "suspended") {
+            audioContextRef.current.resume();
         }
 
         const audioContext = audioContextRef.current;
@@ -105,10 +120,8 @@ const VoiceChat = () => {
 
             if (data.type === "response.audio.delta") {
                 try {
-                    // Step 1: Decode Base64 to ArrayBuffer
                     const pcmArrayBuffer = Realtime.base64ToArrayBuffer(data.delta);
 
-                    // Step 2: Convert PCM16 to Float32Array
                     const float32Array = Realtime.pcmArrayBufferToFloat32(pcmArrayBuffer);
 
                     const audioBuffer = audioContext.createBuffer(channels, float32Array.length, sampleRate);
@@ -116,7 +129,6 @@ const VoiceChat = () => {
 
                     queueRef.current.push(audioBuffer);
 
-                    // Step 6: Start playback if not already playing
                     if (!isPlayingRef.current) {
                         isPlayingRef.current = true;
                         playQueue(audioContext);
@@ -135,43 +147,106 @@ const VoiceChat = () => {
         };
     }, [websocket]);
 
-    // TODO fix sending message
     const startRecording = async () => {
         if (!navigator.mediaDevices) {
             console.error("MediaDevices API not supported");
             return;
         }
+        if (!audioContextRef.current) {
+            audioContextRef.current = new AudioContext({
+                sampleRate
+            });
+        } else if (audioContextRef.current.state === "suspended") {
+            audioContextRef.current.resume();
+        }
+        const audioContext = audioContextRef.current;
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const recorder = new MediaRecorder(stream);
-            setMediaRecorder(recorder);
+            const source = audioContext.createMediaStreamSource(stream);
 
-            recorder.ondataavailable = async (event) => {
+            // Define and add the AudioWorkletProcessor
+            // const pcm16ProcessorCode = `
+            //     class PCM16Processor extends AudioWorkletProcessor {
+            //         constructor() {
+            //             super();
+            //         }
+
+            //         process(inputs, outputs, parameters) {
+            //             const input = inputs[0];
+            //             if (input.length > 0) {
+            //                 this.port.postMessage(input[0]);
+            //             }
+            //             return true;
+            //         }
+            //     }
+
+            //     registerProcessor('pcm16-processor', PCM16Processor);
+            // `;
+            // const blob = new Blob([pcm16ProcessorCode], { type: 'application/javascript' });
+            // const blobURL = URL.createObjectURL(blob);
+            // await audioContext.audioWorklet.addModule(blobURL);
+            // URL.revokeObjectURL(blobURL);
+
+            // // Create and connect the AudioWorkletNode
+            // const processingNode = new AudioWorkletNode(audioContext, 'pcm16-processor');
+            // source.connect(processingNode);
+
+            // // Handle messages from the processor if needed
+            // processingNode.port.onmessage = (event) => {
+            //     const floatData = event.data;
+            //     // Perform real-time visualization or other processing here
+            //     // visualizeAudioData(floatData);
+
+            //     // NOTE possible to visualize for the user the "waves"
+            //     // that shows the music "waves"
+            // };
+
+            // // Create MediaStreamDestination and connect the processing node
+            // const destination = audioContext.createMediaStreamDestination();
+            // processingNode.connect(destination);
+
+            // Initialize MediaRecorder
+            const destination = audioContext.createMediaStreamDestination();
+            source.connect(destination);
+            const mediaRecorder = new MediaRecorder(destination.stream);
+            mediaRecorderRef.current = mediaRecorder;
+
+            // Handle data availability
+            mediaRecorder.ondataavailable = async (event) => {
+                // console.log("data avaiable", event);
+                // console.log("audio context state", audioContext)
                 try {
                     if (event.data && event.data.size > 0) {
                         const arrayBuffer = await event.data.arrayBuffer();
-                        const audioBuffer = await audioContextRef.current?.decodeAudioData(arrayBuffer);
-                        const pcmData = audioBuffer?.getChannelData(0);
-                        const pcm16Data = RealtimeUtils.floatTo16BitPCM(pcmData ?? new Float32Array());
+                        console.log("arraybuffer", arrayBuffer, arrayBuffer.byteLength);
+                        if (arrayBuffer.byteLength < 1) {
+                            console.log("Nothing was recorded");
+                            return;
+                        }
+                        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                        const pcmData = audioBuffer.getChannelData(0);
+                        const pcm16Data = RealtimeUtils.floatTo16BitPCM(pcmData);
                         const base64Data = RealtimeUtils.arrayBufferToBase64(pcm16Data);
                         const message = JSON.stringify({
                             type: "input_audio_buffer.append",
                             audio: base64Data,
-                        })
+                        });
                         websocket?.send(message);
                     }
                 } catch (error) {
-                    console.log("err: ", error);
+                    console.error("Error processing audio data:", error);
                 }
             };
 
-            recorder.onstart = () => {
+            // Handle recorder start
+            mediaRecorder.onstart = () => {
                 setAudioChunks([]);
                 console.log("Recording started");
             };
 
-            recorder.onstop = () => {
+            // Handle recorder stop
+            mediaRecorder.onstop = () => {
                 console.log("Recording stopped");
                 websocket?.send(
                     JSON.stringify({ type: "input_audio_buffer.commit" })
@@ -179,17 +254,34 @@ const VoiceChat = () => {
                 websocket?.send(JSON.stringify({ type: "response.create" }));
             };
 
-            recorder.start(500);
+
+            // Start recording 
+            mediaRecorder.start();
             setIsRecording(true);
         } catch (error) {
-            console.error("Error accessing microphone:", error);
+            console.error("Error accessing microphone or setting up recorder:", error);
         }
     };
 
+
     const stopRecording = () => {
-        mediaRecorder?.stop();
+        mediaRecorderRef.current?.stop();
         setIsRecording(false);
     };
+
+    // NOTE be careful in dev mode to start the audioContextRef.current.resume()
+    // as `useEffect` triggers twice :)
+    useEffect(() => {
+        return () => {
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                mediaRecorderRef.current.stop();
+            }
+            if (audioContextRef.current) {
+                audioContextRef.current.close();
+            }
+        };
+    }, []);
+
 
     return (
         <div>

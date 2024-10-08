@@ -57,6 +57,24 @@ type Message struct {
 	Type    int
 }
 
+// InputAudioTranscription represents the optional audio transcription settings
+type InputAudioTranscription struct {
+	Enable *bool   `json:"enable,omitempty"`
+	Model  *string `json:"model,omitempty"`
+}
+
+// Session represents the session update details
+type Session struct {
+	Instructions            *string                  `json:"instructions,omitempty"`
+	InputAudioTranscription *InputAudioTranscription `json:"input_audio_transcription,omitempty"`
+}
+
+// SessionUpdate represents the overall update message
+type SessionUpdate struct {
+	Type    string   `json:"type"`
+	Session *Session `json:"session,omitempty"`
+}
+
 // TODO close connection with OpenAi when client closes the connection
 func (c *Client) WsHandler(w http.ResponseWriter, r *http.Request) error {
 	// Upgrade connection with client from Http to WebSocket
@@ -72,6 +90,23 @@ func (c *Client) WsHandler(w http.ResponseWriter, r *http.Request) error {
 	openAiConn, resp, err := websocket.DefaultDialer.Dial(OpenAiRealtimeUrl+"?"+OpenAiModelQueryKey+"="+openai.Gpt40RealtimePreview, c.headers)
 	// TODO sent intial message to Open Ai of type `session.update`
 	// to update the session's default configuration
+	// Writing JSON using an inline struct
+	// FIXME refactor
+	// Define session update message
+	instructions := "You are my Croatian programming female friend"
+	sessionUpdate := SessionUpdate{
+		Type: "session.update",
+		Session: &Session{
+			Instructions: &instructions,
+			// InputAudioTranscription is nil, so it will be omitted in JSON
+		},
+	}
+
+	if err := openAiConn.WriteJSON(sessionUpdate); err != nil {
+		log.Println("Error sending session update:", err)
+		return err
+	}
+
 	if err != nil {
 		if resp != nil {
 			return fmt.Errorf("openAi response status: %s", resp.Status)
@@ -137,6 +172,9 @@ func (c *Client) WsHandler(w http.ResponseWriter, r *http.Request) error {
 			log.Printf("received message from client: %v, %v, %v", messageType, result, err)
 			if err != nil {
 				log.Printf("couldn't read message from client: %v", err)
+				// close connection with OpenAi
+				// TODO rethink this
+				openAiConn.Close()
 				break
 			}
 			msg := &Message{
