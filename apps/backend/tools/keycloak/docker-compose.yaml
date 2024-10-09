@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-1
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: keycloak
+      MYSQL_USER: keycloak_user
+      MYSQL_PASSWORD: keycloak_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - 3306:3306
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -proot_password || exit 1"]
+      interval: 10s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:22.0.1
+    container_name: keycloak-1
+    environment:
+      DB_VENDOR: mysql
+      DB_ADDR: mysql
+      DB_DATABASE: keycloak
+      DB_USER: keycloak_user
+      DB_PASSWORD: keycloak_password
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: pass
+    command: start-dev
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - 8080:8080
+
+volumes:
+  mysql_data:
+
