@@ -2,7 +2,8 @@ package api
 
 import (
 	"proomptmachinee/internal/services/keycloak"
-	"proomptmachinee/internal/services/openapi/completions"
+	"proomptmachinee/internal/services/openai/completions"
+	"proomptmachinee/internal/services/openai/realtime"
 	"proomptmachinee/pkg/errors"
 	"proomptmachinee/pkg/logger"
 	"proomptmachinee/pkg/resputil"
@@ -10,6 +11,7 @@ import (
 
 type Api struct {
 	completionsClient *completions.Client
+	realtimeClient    *realtime.Client
 	keycloakValidator *keycloak.Validator
 	logger            logger.Logger
 	resputil          resputil.Resputil
@@ -19,11 +21,13 @@ type Api struct {
 func New(compClient *completions.Client,
 	keycloakValidator *keycloak.Validator,
 	logger logger.Logger,
+	realtimeClient *realtime.Client,
 	resputil resputil.Resputil,
 	errResp resp_errors.ErrResponder,
 ) *Api {
 	return &Api{
 		completionsClient: compClient,
+		realtimeClient:    realtimeClient,
 		keycloakValidator: keycloakValidator,
 		resputil:          resputil,
 		logger:            logger,

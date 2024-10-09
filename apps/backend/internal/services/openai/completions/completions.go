@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	openApiCompletionsUrl string = "https://api.openai.com/v1/chat/completions"
+	openAiCompletionsUrl string = "https://api.openai.com/v1/chat/completions"
 )
 
 type Client struct {
@@ -30,8 +30,8 @@ func (s *StreamResponse) Receive(w http.ResponseWriter) error {
 	defer s.Close()
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
-		return errors.New("Streaming unsupported!")
+		http.Error(w, "streaming unsupported!", http.StatusInternalServerError)
+		return errors.New("streaming unsupported")
 	}
 
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -40,7 +40,7 @@ func (s *StreamResponse) Receive(w http.ResponseWriter) error {
 
 	if s.resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(s.resp.Body)
-		return fmt.Errorf("Error: %s\nBody: %s", s.resp.Status, string(bodyBytes))
+		return fmt.Errorf("error: %s\nBody: %s", s.resp.Status, string(bodyBytes))
 	}
 
 	// Read the streaming response line by line
@@ -92,6 +92,10 @@ func (s *StreamResponse) Receive(w http.ResponseWriter) error {
 		return doneErr
 	}
 	flusher.Flush()
+	//https://cookbook.openai.com/examples/how_to_stream_completions#4-how-to-get-token-usage-data-for-streamed-chat-completion-response
+	// you can use stream_options={"include_usage": true} to get the usage metadata
+	// the `usage` field on the last chunk contains the usage statistics for the entire request
+	// it can still be a cool excercise to try to calculate the tokens yourself
 	status := &ContentResponse{
 		Metadata: map[string]string{
 			"requests_remaining": "zero",
@@ -111,7 +115,7 @@ func NewCompletionsClient(key string, client *http.Client, model string) *Client
 	return &Client{
 		key:    key,
 		client: client,
-		url:    openApiCompletionsUrl,
+		url:    openAiCompletionsUrl,
 		model:  model,
 	}
 }
@@ -124,6 +128,9 @@ func (c *Client) SendPrompt(prompt string) (*StreamResponse, error) {
 		Content: prompt,
 	}
 
+	// TODO add stream_options={"include_usage": true} to the request
+	// TODO add more fields like temperature, max_tokens, etc. that can
+	// passed from the frontend
 	completionReq := &CompletionRequest{
 		Model:    c.model,
 		Messages: []*CompletionRequestMessage{msg},

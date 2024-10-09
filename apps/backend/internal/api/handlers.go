@@ -37,6 +37,13 @@ func (api *Api) handleGetTestData(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func (api *Api) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	err := api.realtimeClient.WsHandler(w, r)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func (api *Api) healthcheck(w http.ResponseWriter, r *http.Request) {
 	data := map[string]interface{}{
 		"status":      "alive",
@@ -77,6 +84,31 @@ func (api *Api) authMiddleware(next http.Handler) http.Handler {
 func (api *Api) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		api.logger.LogRequestResponse(r, 343, "something", time.Duration(5), nil)
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (api *Api) corsPreflight(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (api *Api) corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
 		next.ServeHTTP(w, r)
 	})
 }
