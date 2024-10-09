@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	openApiCompletionsUrl string = "https://api.openai.com/v1/chat/completions"
+	openAiCompletionsUrl string = "https://api.openai.com/v1/chat/completions"
 )
 
 type Client struct {
@@ -115,7 +115,7 @@ func NewCompletionsClient(key string, client *http.Client, model string) *Client
 	return &Client{
 		key:    key,
 		client: client,
-		url:    openApiCompletionsUrl,
+		url:    openAiCompletionsUrl,
 		model:  model,
 	}
 }

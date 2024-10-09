@@ -20,6 +20,13 @@ func (api *Api) handleStream(w http.ResponseWriter, r *http.Request) {
 	err = response.Receive(w)
 }
 
+func (api *Api) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	err := api.realtimeClient.WsHandler(w, r)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func (api *Api) healthcheck(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 	w.Write([]byte("service is healthy"))
@@ -55,15 +62,27 @@ func (api *Api) loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func (api *Api) corsPreflight(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+	w.WriteHeader(http.StatusOK)
+}
+
 func (api *Api) corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Allow", r.Header.Get("Allow"))
-		w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Access-Control-Allow-Origin"))
-		w.Header().Set("Access-Control-Allow-Headers", r.Header.Get("Access-Control-Allow-Headers"))
-		if r.Method == "OPTIONS" {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
+
 		next.ServeHTTP(w, r)
 	})
 }

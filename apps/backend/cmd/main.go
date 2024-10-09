@@ -1,14 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 	"proomptmachinee/internal/api"
 	"proomptmachinee/internal/config"
 	"proomptmachinee/internal/services/keycloak"
-	"proomptmachinee/internal/services/openapi"
-	"proomptmachinee/internal/services/openapi/completions"
+	"proomptmachinee/internal/services/openai"
+	"proomptmachinee/internal/services/openai/completions"
+	"proomptmachinee/internal/services/openai/realtime"
 	"proomptmachinee/pkg/logger"
 	"time"
 
@@ -27,11 +27,11 @@ func main() {
 		log.Fatal("couldn't unmarshal config", err)
 	}
 	key := cfg.OpenAi.ApiKey
-	fmt.Println(key)
-	client := &http.Client{}
-	completionsClient := completions.NewCompletionsClient(key, client, openapi.Gpt4oMini)
+	httpClient := &http.Client{}
+	completionsClient := completions.NewCompletionsClient(key, httpClient, openai.Gpt4oMini)
+	realtimeClient := realtime.NewRealtimeClient(key, openai.Gpt40RealtimePreview)
 	kcValidator := keycloak.NewValidator(cfg.Keycloak.Oauth2IssuerURL)
-	chatBotApi := api.New(completionsClient, kcValidator, log)
+	chatBotApi := api.New(completionsClient, kcValidator, log, realtimeClient)
 	server := &http.Server{
 		Addr:        ":4000",
 		Handler:     chatBotApi.Routes(),
