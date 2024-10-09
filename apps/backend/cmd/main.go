@@ -9,7 +9,9 @@ import (
 	"proomptmachinee/internal/services/openai"
 	"proomptmachinee/internal/services/openai/completions"
 	"proomptmachinee/internal/services/openai/realtime"
+	resp_errors "proomptmachinee/pkg/errors"
 	"proomptmachinee/pkg/logger"
+	"proomptmachinee/pkg/resputil"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -31,7 +33,14 @@ func main() {
 	completionsClient := completions.NewCompletionsClient(key, httpClient, openai.Gpt4oMini)
 	realtimeClient := realtime.NewRealtimeClient(key, openai.Gpt40RealtimePreview)
 	kcValidator := keycloak.NewValidator(cfg.Keycloak.Oauth2IssuerURL)
-	chatBotApi := api.New(completionsClient, kcValidator, log, realtimeClient)
+	errResp := resp_errors.New(log)
+	resp := resputil.NewResputil()
+	chatBotApi := api.New(completionsClient,
+		kcValidator,
+		log,
+		realtimeClient,
+		resp,
+		errResp)
 	server := &http.Server{
 		Addr:        ":4000",
 		Handler:     chatBotApi.Routes(),
