@@ -10,7 +10,7 @@ export default class RealtimeUtils {
      * @param {Float32Array} float32Array
      * @returns {ArrayBuffer}
      */
-    static floatTo16BitPCM(float32Array) {
+    static floatTo16BitPCM(float32Array: Float32Array): ArrayBuffer {
         const buffer = new ArrayBuffer(float32Array.length * 2);
         const view = new DataView(buffer);
         let offset = 0;
@@ -26,7 +26,7 @@ export default class RealtimeUtils {
      * @param {string} base64
      * @returns {ArrayBuffer}
      */
-    static base64ToArrayBuffer(base64) {
+    static base64ToArrayBuffer(base64: string): ArrayBuffer {
         const binaryString = atob(base64);
         const len = binaryString.length;
         const bytes = new Uint8Array(len);
@@ -41,7 +41,7 @@ export default class RealtimeUtils {
      * @param {ArrayBuffer|Int16Array|Float32Array} arrayBuffer
      * @returns {string}
      */
-    static arrayBufferToBase64(arrayBuffer) {
+    static arrayBufferToBase64(arrayBuffer: ArrayBuffer | Int16Array | Float32Array): string {
         if (arrayBuffer instanceof Float32Array) {
             arrayBuffer = this.floatTo16BitPCM(arrayBuffer);
         } else if (arrayBuffer instanceof Int16Array) {
@@ -52,7 +52,7 @@ export default class RealtimeUtils {
         const chunkSize = 0x8000; // 32KB chunk size
         for (let i = 0; i < bytes.length; i += chunkSize) {
             let chunk = bytes.subarray(i, i + chunkSize);
-            binary += String.fromCharCode.apply(null, chunk);
+            binary += String.fromCharCode.apply(null, Array.from(chunk));
         }
         return btoa(binary);
     }
@@ -63,7 +63,7 @@ export default class RealtimeUtils {
      * @param {ArrayBuffer|Int16Array} right
      * @returns {Int16Array}
      */
-    static mergeInt16Arrays(left, right) {
+    static mergeInt16Arrays(left: ArrayBuffer | Int16Array, right: ArrayBuffer | Int16Array): Int16Array {
         if (left instanceof ArrayBuffer) {
             left = new Int16Array(left);
         }
@@ -89,7 +89,7 @@ export default class RealtimeUtils {
      * @param {number} [length]
      * @returns {string}
      */
-    static generateId(prefix, length = 21) {
+    static generateId(prefix: string, length: number = 21): string {
         // base58; non-repeating chars
         const chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
         const str = Array(length - prefix.length)
@@ -104,7 +104,7 @@ export default class RealtimeUtils {
      * @param {ArrayBuffer} pcmData - The raw PCM16 data.
      * @returns {Float32Array} - The normalized audio samples.
      */
-    static pcmArrayBufferToFloat32(pcmData) {
+    static pcmArrayBufferToFloat32(pcmData: ArrayBuffer): Float32Array {
         const dataView = new DataView(pcmData);
         const numSamples = pcmData.byteLength / 2; // 16 bits = 2 bytes per sample
         const float32Array = new Float32Array(numSamples);
@@ -124,7 +124,7 @@ export default class RealtimeUtils {
      * @param {number} outputSampleRate 
      * @returns {Float32Array}
      */
-    static resample(inputData, inputSampleRate, outputSampleRate) {
+    static resample(inputData: Float32Array, inputSampleRate: number, outputSampleRate: number): Float32Array {
         const sampleRatio = inputSampleRate / outputSampleRate;
         const newLength = Math.round(inputData.length / sampleRatio);
         const resampledData = new Float32Array(newLength);
@@ -140,4 +140,3 @@ export default class RealtimeUtils {
         return resampledData;
     }
 }
-

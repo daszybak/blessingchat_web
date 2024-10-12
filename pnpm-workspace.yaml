@@ -1,0 +1,6 @@
+packages:
+  - 'apps/web'
+  - 'packages/shared_frontend'
+
+hoist-pattern:
+  - '*'

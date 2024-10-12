@@ -10,7 +10,6 @@ import (
 func (api *Api) Routes() *httprouter.Router {
 	router := httprouter.New()
 
-	// TODO Jel moš puknut Keylcoak image s realm.jsonom?
 	// chain := alice.New(api.corsMiddleware, api.authMiddleware)
 	chain := alice.New(api.corsMiddleware)
 	router.Handler(http.MethodGet, "/v1/test", chain.Then(http.HandlerFunc(api.testToken)))
