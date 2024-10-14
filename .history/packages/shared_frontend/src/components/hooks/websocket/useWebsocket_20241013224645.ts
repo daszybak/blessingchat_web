@@ -10,9 +10,8 @@ const useWebsocket = (url: string, options: Options = DEFAULT_OPTIONS, debug: bo
     const websocketRef = useRef<WebSocket | null>(null);
 
     const openWebsocketConnection = async () => {
-        // NOTE If the `websocket` is already initialized, don't reinitialize
-        // but return the `websocket`
-        if (websocketRef.current) return websocketRef.current;
+        // If the websocket is already initialized, don't reinitalize
+        if (websocketRef.current) return;
         websocketRef.current = await (new WebSocketClient(url, options, debug)).getWebSocket();
         return websocketRef.current;
     }

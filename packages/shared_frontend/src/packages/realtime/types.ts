@@ -146,3 +146,10 @@ export interface ResponseResourceType {
     output: ItemType[];
     usage: UsageType | null;
 }
+
+export interface RealtimeEvent {
+    time: string;
+    source: 'client' | 'server';
+    count?: number;
+    event: { [key: string]: any };
+}

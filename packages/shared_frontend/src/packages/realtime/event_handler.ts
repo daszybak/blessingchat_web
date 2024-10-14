@@ -122,14 +122,12 @@ export class RealtimeEventHandler {
      * @param eventName
      * @param event
      */
-    dispatch(eventName: string, event: any): true {
-        // NOTE possible bug here, check later
-        const handlers = (eventName in this.eventHandlers[eventName] ? this.eventHandlers[eventName] : [])
+    dispatch(eventName: string, event?: any): true {
+        const handlers = this.eventHandlers[eventName] || [];
         for (const handler of handlers) {
             handler(event);
         }
-        // NOTE possible bug here, check later
-        const nextHandlers = (eventName in this.nextEventHandlers[eventName] ? this.nextEventHandlers[eventName] : []);
+        const nextHandlers = this.nextEventHandlers[eventName] || [];
         for (const nextHandler of nextHandlers) {
             nextHandler(event);
         }

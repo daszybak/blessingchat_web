@@ -1,3 +1,6 @@
+// Inspiration from https://github.com/robtaussig/react-use-websocket/blob/master/src/lib/use-websocket.ts#L59
+// Most of these types aren't currently used
+
 import { MutableRefObject } from 'react';
 
 export interface QueryParams {
@@ -22,7 +25,7 @@ export interface Options {
     // eventSourceOptions?: EventSourceOnly;
     // skipAssert?: boolean;
     // heartbeat?: boolean | HeartbeatOptions;
-    connectOnLoad?: boolean;
+    debug?: boolean;
 }
 
 export type EventSourceOnly = Omit<Options, 'eventSourceOptions'> & EventSourceInit;

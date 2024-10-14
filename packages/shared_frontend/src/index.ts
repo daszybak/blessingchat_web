@@ -1,2 +1,2 @@
-export * from "./utils/wavtools";
+export * from "./packages";
 export * from "./components";
