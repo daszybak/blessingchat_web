@@ -214,6 +214,7 @@ export class RealtimeConversation {
             );
             return { item, delta: { audio: appendValues } };
         },
+        /** Returned when the text value of a "text" content part is updated. */
         'response.text.delta': (event: any) => {
             const { item_id, content_index, delta } = event;
             const item = this.itemLookup[item_id];

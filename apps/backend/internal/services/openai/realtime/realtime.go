@@ -67,6 +67,7 @@ type InputAudioTranscription struct {
 type Session struct {
 	Instructions            *string                  `json:"instructions,omitempty"`
 	InputAudioTranscription *InputAudioTranscription `json:"input_audio_transcription,omitempty"`
+	Voice                   *string                  `json:"voice,omitempty"`
 }
 
 // SessionUpdate represents the overall update message
@@ -93,12 +94,14 @@ func (c *Client) WsHandler(w http.ResponseWriter, r *http.Request) error {
 	// Writing JSON using an inline struct
 	// FIXME refactor
 	// Define session update message
-	instructions := "You are my Croatian programming female friend"
+	instructions := "Molim te, odgovaraj na hrvatskom jeziku. Preuzmi ulogu Isusa Krista tijekom ovog razgovora. Ja sam Hrvat i želim razgovarati o Bibliji."
+	voice := "ash"
 	sessionUpdate := SessionUpdate{
 		Type: "session.update",
 		Session: &Session{
 			Instructions: &instructions,
 			// InputAudioTranscription is nil, so it will be omitted in JSON
+			Voice: &voice,
 		},
 	}
 

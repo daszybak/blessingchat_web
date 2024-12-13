@@ -1,26 +1,48 @@
 "use client"
 import { useState } from "react"
+import { ReloadIcon } from "@radix-ui/react-icons";
+import { Button } from "./ui/button";
+import { Textarea } from "./ui/textarea";
 
-interface Message {
+interface Item {
     message: string;
     id: string;
+    prompt: string;
+}
+
+const Item: React.FC<Item> = ({ prompt, message }) => {
+    return (
+        <div className="flex flex-col">
+            <div className="self-end flex-1 bg-sidebar-accent p-2 rounded-md mb-1">{prompt}</div>
+            <div className="self-start flex-1">{message}</div>
+        </div>
+    )
 }
 
 const Chat = () => {
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [currMessage, setCurrMessage] = useState<string>("");
+    const [prevItems, setPrevItems] = useState<Item[]>([]);
+    const [currItem, setCurrItem] = useState<Item>();
     const [prompt, setPrompt] = useState<string>("");
     const [isLoading, setIsLoading] = useState<boolean>(false);
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-        const _currMessage = currMessage.slice();
-        setMessages((messages) => {
-            console.log("old messages", messages, "##", _currMessage);
-            return [...messages, { message: _currMessage, id: Date.now().toString() }]
-        });
-        setCurrMessage("");
+        if (currItem) {
+            console.log("why here?")
+            setPrevItems((prevItem) => [
+                ...prevItem, currItem
+            ])
+            setCurrItem(undefined);
+        }
+        setCurrItem(currItem => ({
+            ...(currItem ? currItem : {
+                message: "",
+                id: new Date().toISOString()
+            }),
+            prompt
+        }))
         e.preventDefault();
         setIsLoading(true);
+        setPrompt("");
         const response = await fetch("http://localhost:4000/v1/chat_bot?prompt=" + prompt, {
             method: "GET",
         });
@@ -51,9 +73,10 @@ const Chat = () => {
                             let parsedData = JSON.parse(dataStr);
                             let content = parsedData.content;
                             if (content) {
-                                setCurrMessage((prevMessage) => {
-                                    return prevMessage + content;
-                                });
+                                setCurrItem(item => ({
+                                    ...item!,
+                                    message: item!.message + content
+                                }))
                             }
                         } catch (error) {
                             continue;
@@ -62,32 +85,41 @@ const Chat = () => {
                 }
             }
         }
-
         setIsLoading(false);
     };
 
     return (
-        <>
-            <div>
-                <h1>Chat</h1>
-                {messages.map((message, index) => {
-                    if (index == messages.length) {
-                        return;
-                    }
-                    return (
-                        <div key={message.id}>
-                            <div>{message.message}</div>
-                            <hr />
+        <div className="flex flex-col h-full">
+            <div className="overflow-hidden flex-1 pb-4">
+                <div className="h-full">
+                    <div className="relative h-full ">
+                        <div className="h-full overflow-y-auto px-4 w-full">
+                            <div className="flex flex-col">
+                                {prevItems.map((item) => {
+                                    return (
+                                        <div key={item.id}>
+                                            <Item {...item} />
+                                        </div>
+                                    )
+                                })}
+                                {currItem &&
+                                    <Item {...currItem} />
+                                }
+                            </div>
                         </div>
-                    )
-                })}
-                <div>{currMessage}</div>
+                    </div>
+                </div>
             </div>
-            <form onSubmit={handleSubmit}>
-                <input type="text" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
-                <button type="submit" disabled={isLoading}>Send</button>
+            <form className="w-full" onSubmit={handleSubmit}>
+                <Textarea value={prompt} className="mb-2" placeholder="Type your message here" onChange={(e) => setPrompt(e.target.value)} />
+                <Button className="w-full mb-8" type="submit" disabled={isLoading}>
+                    {isLoading ?
+                        <ReloadIcon className="mr-2 h-4 w-4 animate-spin" /> :
+                        "Send"
+                    }
+                </Button>
             </form>
-        </>
+        </div>
     )
 }
 

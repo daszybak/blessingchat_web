@@ -77,7 +77,7 @@ func (s *StreamResponse) Receive(w http.ResponseWriter) error {
 				contentResp := &ContentResponse{Content: content}
 				jsonChunk, _ := json.Marshal(contentResp)
 
-				_, err := w.Write([]byte("data: " + string(jsonChunk) + "\n\n"))
+				_, err := w.Write([]byte("data: " + string(jsonChunk) + "\n"))
 				if err != nil {
 					return err
 				}
